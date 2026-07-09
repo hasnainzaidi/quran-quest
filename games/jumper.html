@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Sky Jumper — Quran Quest</title>
+<link rel="stylesheet" href="../assets/css/shared.css" />
+<style>
+  body { background: #7dd3fc; overflow: hidden; }
+  #wordPop { position: fixed; top: 13vh; left: 50%; transform: translateX(-50%);
+    z-index: 30; pointer-events: none; text-align: center; opacity: 0; }
+  #wordPop.show { animation: wp 1.5s ease forwards; }
+  @keyframes wp {
+    0% { opacity: 0; transform: translateX(-50%) scale(.5); }
+    18% { opacity: 1; transform: translateX(-50%) scale(1.06); }
+    80% { opacity: 1; } 100% { opacity: 0; }
+  }
+  #wordPop .wp-ar { font-family: "Scheherazade New", serif; font-weight: 700; direction: rtl;
+    font-size: clamp(40px, 8vw, 68px); color: #fff;
+    text-shadow: 0 0 22px #38bdf8, 0 4px 12px rgba(0,0,0,.4); }
+  #ayahBanner { position: fixed; inset: 0; z-index: 35; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+    background: radial-gradient(ellipse at center, rgba(30,64,120,.88), rgba(15,35,80,.94));
+    backdrop-filter: blur(4px); text-align: center; padding: 20px; }
+  #ayahBanner.show { display: flex; animation: qq-appear .4s ease; }
+  #ayahBanner .ab-star { font-size: 60px; animation: qq-float 2.2s ease-in-out infinite; }
+  #ayahBanner .ab-ar { font-family: "Scheherazade New", serif; font-weight: 700; direction: rtl;
+    font-size: clamp(32px, 7vw, 60px); color: #ffe9a8; line-height: 2;
+    text-shadow: 0 0 28px rgba(251,191,36,.55); max-width: 90vw; }
+  #progress { position: fixed; top: 74px; left: 50%; transform: translateX(-50%);
+    z-index: 40; display: flex; gap: 7px; background: rgba(255,255,255,.25);
+    padding: 7px 14px; border-radius: 999px; backdrop-filter: blur(4px); }
+  #progress .p-dot { width: 13px; height: 13px; border-radius: 50%; background: rgba(255,255,255,.5); transition: all .3s; }
+  #progress .p-dot.done { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="wordPop"><div class="wp-ar"></div></div>
+<div id="ayahBanner"><div class="ab-star">🌟</div><div class="ab-ar"></div></div>
+
+<script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
+<script>
+(async function () {
+  const surah = QQ.getSurah(QQ.param("surah"));
+  if (!surah) { location.href = "../index.html"; return; }
+  let level = Math.min(QQ.getLevel("jumper", surah.slug), 3);
+  const V = surah.verses.length;
+
+  const cv = document.getElementById("cv");
+  const c = QQ.fitCanvas(cv);
+  const W = () => innerWidth, H = () => innerHeight;
+  QQ.hud(surah, "Sky Jumper");
+  const keys = QQ.controls({ buttons: ["left", "right"] });
+  const wordPop = document.getElementById("wordPop");
+  const banner = document.getElementById("ayahBanner");
+  try { await document.fonts.load('700 48px "Scheherazade New"'); } catch (e) {}
+
+  const prog = document.createElement("div");
+  prog.id = "progress";
+  surah.verses.forEach(() => { const d = document.createElement("div"); d.className = "p-dot"; prog.appendChild(d); });
+  document.body.appendChild(prog);
+  const dots = [...prog.children];
+
+  // ---------- build the sky (world y: 0 at base, NEGATIVE going up) ----------
+  const STEP = 150;
+  let clouds = [], seq = [], moon = null;
+  function margin() { return Math.min(W() * .16, 130); }
+  function zig(i, span) {
+    const m = margin(), usable = W() - 2 * m;
+    return m + (Math.sin(i * 1.7) * .5 + .5) * usable * (span || 1);
+  }
+  function build() {
+    clouds = []; seq = [];
+    let y = -220, idx = 0;
+    // base pad
+    clouds.push({ x: W() / 2, y: 40, w: 200, type: "base", done: true });
+    surah.verses.forEach((v, vi) => {
+      v.words.forEach((w, wi) => {
+        const cl = { x: zig(idx), y, w: 128, type: "word", vi, wi, word: w, done: false, seqI: seq.length, drift: level >= 3 && idx % 3 === 0 ? 1 : 0, t0: Math.random() * 9 };
+        clouds.push(cl); seq.push(cl);
+        // decoy next to it (levels 2-3): same verse, wrong position word
+        if (level >= 2 && v.words.length > 1 && wi % 2 === 1) {
+          const dw = v.words[(wi + 2) % v.words.length];
+          clouds.push({ x: W() - cl.x, y: y - 40, w: 110, type: "decoy", word: dw, grey: false, t0: Math.random() * 9 });
+        }
+        y -= STEP; idx++;
+      });
+      const gate = { x: W() / 2, y, w: 230, type: "gate", vi, done: false, seqI: seq.length, t0: 0 };
+      clouds.push(gate); seq.push(gate);
+      y -= STEP * 1.2;
+    });
+    moon = { x: W() / 2, y: y - 60 };
+  }
+  build();
+
+  // ---------- player ----------
+  const P = { x: W() / 2, y: -40, vx: 0, vy: 0, r: 24, squash: 0 };
+  let cam = -H() + 120, nextI = 0, paused = true, t = 0, rescue = 0, sparks = [];
+  const BOUNCE = -13.4, SUPER = -15.5, WEAK = -8, GRAV = 0.34;
+
+  function spark(x, y, col, n) {
+    for (let i = 0; i < (n || 14); i++)
+      sparks.push({ x, y, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6 - 2, life: 1, col });
+  }
+  function popWord(txt, color) {
+    wordPop.querySelector(".wp-ar").textContent = txt;
+    wordPop.querySelector(".wp-ar").style.textShadow = "0 0 22px " + (color || "#38bdf8") + ", 0 4px 12px rgba(0,0,0,.4)";
+    wordPop.classList.remove("show"); void wordPop.offsetWidth; wordPop.classList.add("show");
+  }
+
+  async function landGate(g) {
+    g.done = true;
+    paused = true;
+    QQ.stopAudio();
+    const v = surah.verses[g.vi];
+    dots[g.vi].classList.add("done");
+    banner.querySelector(".ab-ar").textContent = v.ar;
+    banner.classList.add("show");
+    QQ.sfx.fanfare();
+    await QQ.playVerse(surah.id, v.n);
+    await QQ.speak(v.meaning);
+    banner.classList.remove("show");
+    nextI++;
+    if (nextI >= seq.length) {
+      // ride to the moon
+      paused = false;
+      P.vy = SUPER * 1.2;
+    } else {
+      QQ.preload(surah.id, surah.verses[Math.min(g.vi + 1, V - 1)].n);
+      paused = false;
+      P.vy = SUPER;
+    }
+  }
+
+  function landCloud(cl) {
+    P.squash = 8;
+    if (cl.type === "base") { P.vy = BOUNCE; QQ.sfx.bounce(); return; }
+    if (cl.type === "decoy") {
+      P.vy = WEAK; cl.grey = true;
+      QQ.sfx.hm(); QQ.playWord(cl.word.audio);
+      popWord(cl.word.ar, "#94a3b8");
+      return;
+    }
+    const isNext = cl.seqI === nextI;
+    if (cl.type === "gate") {
+      if (isNext) landGate(cl);
+      else P.vy = BOUNCE; // revisit
+      return;
+    }
+    // word cloud
+    if (isNext) {
+      cl.done = true; nextI++;
+      P.vy = SUPER;
+      QQ.sfx.pop();
+      QQ.playWord(cl.word.audio);
+      popWord(cl.word.ar);
+      spark(cl.x, cl.y, "#fff", 18);
+    } else if (cl.done) {
+      P.vy = BOUNCE; QQ.sfx.bounce();
+      QQ.playWord(cl.word.audio); // reinforcement replay
+      popWord(cl.word.ar);
+    } else {
+      P.vy = WEAK; QQ.sfx.hm();
+    }
+  }
+
+  function rescueMe() {
+    // friendly balloon back to last checkpoint
+    rescue = 1;
+    QQ.sfx.soft();
+    const target = nextI > 0 ? seq[nextI - 1] : clouds[0];
+    P.x = target.x; P.vx = 0; P.vy = 0;
+    P.ry = target.y - 300; // rescue float target
+  }
+
+  // ---------- drawing ----------
+  function sky() {
+    const p = Math.min(1, nextI / Math.max(1, seq.length)); // 0 ground → 1 space
+    const top = [200 - p * 60, 70 - p * 20, 80 - p * 55];
+    const bot = [200 - p * 10, 80, 88 - p * 30];
+    const g = c.createLinearGradient(0, 0, 0, H());
+    g.addColorStop(0, `hsl(${top[0]}, ${top[1]}%, ${Math.max(12, top[2])}%)`);
+    g.addColorStop(1, `hsl(${bot[0]}, ${bot[1]}%, ${bot[2]}%)`);
+    c.fillStyle = g; c.fillRect(0, 0, W(), H());
+    // stars appear as you climb
+    if (p > .3) {
+      c.fillStyle = "#fff";
+      for (let i = 0; i < 50; i++) {
+        const sx = (i * 379) % W(), sy = ((i * 211) - cam * .1) % H();
+        c.globalAlpha = Math.max(0, (p - .3)) * (.4 + Math.abs(Math.sin(t * .03 + i)) * .5);
+        c.fillRect(sx, (sy + H()) % H(), 2, 2);
+      }
+      c.globalAlpha = 1;
+    }
+    // distant drifting puffs
+    c.fillStyle = "rgba(255,255,255,.25)";
+    for (let i = 0; i < 8; i++) {
+      const cx = ((i * 431 + t * (.2 + i * .05)) % (W() + 300)) - 150;
+      const cy = ((i * 617) - cam * .3) % (H() + 200) - 100;
+      c.beginPath(); c.ellipse(cx, (cy + H() + 200) % (H() + 200) - 100, 70, 24, 0, 0, 7); c.fill();
+    }
+  }
+  function drawCloud(cl) {
+    const y = cl.y - cam;
+    if (y < -80 || y > H() + 80) return;
+    if (cl.drift) cl.x += Math.sin(t * .02 + cl.t0) * .6;
+    const isNext = cl.seqI === nextI;
+    const bob = Math.sin(t * .04 + (cl.t0 || 0)) * 4;
+    c.save();
+    if (cl.type === "gate") {
+      const glow = isNext ? .8 + Math.sin(t * .1) * .2 : .35;
+      c.shadowColor = "#fbbf24"; c.shadowBlur = 34 * glow;
+      c.fillStyle = cl.done ? "#fde68a" : "#fbbf24";
+      // star platform
+      c.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 ? 16 : 34;
+        const a = (i * Math.PI) / 5 - Math.PI / 2 + t * .004;
+        c[i ? "lineTo" : "moveTo"](cl.x + Math.cos(a) * rr * 1.1, y + bob + Math.sin(a) * rr * .55);
+      }
+      c.closePath(); c.fill();
+      c.fillStyle = "#fff7d6";
+      QQ.rr(c, cl.x - cl.w / 2, y + bob + 12, cl.w, 16, 8); c.fill();
+      c.restore();
+      return;
+    }
+    let col = "#ffffff";
+    if (cl.type === "decoy") col = cl.grey ? "rgba(148,163,184,.6)" : "#e2e8f0";
+    if (cl.type === "word" && cl.done) col = "#fde68a";
+    if (isNext && level < 3) { c.shadowColor = "#38bdf8"; c.shadowBlur = 26 + Math.sin(t * .12) * 10; }
+    c.fillStyle = col;
+    const wdt = cl.w;
+    c.beginPath();
+    c.ellipse(cl.x, y + bob + 8, wdt / 2, 20, 0, 0, 7);
+    c.ellipse(cl.x - wdt * .22, y + bob, wdt * .2, 17, 0, 0, 7);
+    c.ellipse(cl.x + wdt * .2, y + bob - 2, wdt * .24, 19, 0, 0, 7);
+    c.ellipse(cl.x, y + bob - 8, wdt * .2, 16, 0, 0, 7);
+    c.fill();
+    if (isNext && cl.type === "word") {
+      c.fillStyle = "#0ea5e9";
+      c.font = "700 20px Fredoka";
+      c.textAlign = "center";
+      c.fillText("✦", cl.x, y + bob - 22);
+      c.textAlign = "left";
+    }
+    c.restore();
+  }
+  function drawMoon() {
+    const y = moon.y - cam;
+    if (y > H() + 120) return;
+    c.save();
+    c.shadowColor = "#fff7d6"; c.shadowBlur = 60;
+    c.fillStyle = "#fff7d6";
+    c.beginPath(); c.arc(moon.x, y, 54, 0, 7); c.fill();
+    c.fillStyle = "rgba(230,220,180,.7)";
+    [[-14, -10, 9], [16, 6, 7], [-2, 18, 6]].forEach(([mx, my, mr]) => {
+      c.beginPath(); c.arc(moon.x + mx, y + my, mr, 0, 7); c.fill();
+    });
+    c.restore();
+  }
+  function drawPlayer() {
+    const y = P.y - cam;
+    if (P.squash > 0) P.squash -= .8;
+    const sq = P.squash / 10;
+    c.save();
+    c.shadowColor = "#fff"; c.shadowBlur = 18;
+    c.fillStyle = "#fca5a5";
+    c.beginPath(); c.ellipse(P.x, y, P.r * (1 + sq * .4), P.r * (1 - sq * .4), 0, 0, 7); c.fill();
+    c.restore();
+    // cape flutter
+    c.fillStyle = "#f87171";
+    c.beginPath();
+    c.moveTo(P.x - P.r * .7, y);
+    c.quadraticCurveTo(P.x - P.r * 1.6, y + 14 + Math.sin(t * .3) * 5, P.x - P.r * .4, y + P.r * .8);
+    c.closePath(); c.fill();
+    // face
+    c.fillStyle = "#2b2350";
+    const lx = P.vx * 1.2;
+    c.beginPath(); c.arc(P.x - 7 + lx, y - 5, 3.2, 0, 7); c.fill();
+    c.beginPath(); c.arc(P.x + 7 + lx, y - 5, 3.2, 0, 7); c.fill();
+    c.strokeStyle = "#2b2350"; c.lineWidth = 2;
+    c.beginPath(); c.arc(P.x + lx, y + 4, 5, 0, Math.PI); c.stroke();
+    if (rescue > 0) { // balloon
+      c.font = "44px serif"; c.fillText("🎈", P.x - 14, y - P.r - 14);
+    }
+  }
+
+  // ---------- loop ----------
+  let finished = false;
+  function loop() {
+    t++;
+    if (!paused) {
+      if (rescue > 0) {
+        P.y += (P.ry - P.y) * .06;
+        if (Math.abs(P.ry - P.y) < 8) { rescue = 0; P.vy = 0; }
+      } else {
+        if (keys.left) P.vx -= .6;
+        if (keys.right) P.vx += .6;
+        P.vx *= .92;
+        P.x += P.vx * 1.6;
+        if (P.x < -20) P.x = W() + 20; // wrap around edges (fun!)
+        if (P.x > W() + 20) P.x = -20;
+        P.vy += GRAV;
+        P.y += P.vy;
+        // landings (only while falling)
+        if (P.vy > 0) {
+          for (const cl of clouds) {
+            if (cl.type === "decoy" && cl.grey) continue;
+            const top = cl.y - 10;
+            if (Math.abs(cl.x - P.x) < cl.w / 2 + P.r * .5 && P.y + P.r > top && P.y + P.r < top + 34 && P.vy < 22) {
+              landCloud(cl); break;
+            }
+          }
+        }
+        // reached the moon?
+        if (!finished && nextI >= seq.length && P.y < moon.y + 70) {
+          finished = true;
+          spark(moon.x, moon.y, "#ffe9a8", 40);
+          QQ.setLevel("jumper", surah.slug, level + 1);
+          QQ.finish(surah, "jumper", level, () => location.reload());
+        }
+        // fell too far below camera → rescue balloon
+        if (P.y - cam > H() + 140 && !finished) rescueMe();
+      }
+      // camera follows highest point (never scrolls down much)
+      const targetCam = P.y - H() * .62;
+      if (targetCam < cam) cam += (targetCam - cam) * .1;
+    }
+    sky();
+    drawMoon();
+    clouds.forEach(drawCloud);
+    drawPlayer();
+    sparks = sparks.filter(p => p.life > 0);
+    sparks.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += .1; p.life -= .025;
+      c.globalAlpha = p.life; c.fillStyle = p.col;
+      c.beginPath(); c.arc(p.x, p.y - cam, 4 * p.life, 0, 7); c.fill();
+    });
+    c.globalAlpha = 1;
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  QQ.startOverlay(
+    "Sky Jumper", "☁️",
+    "Time to jump up to the moon! Steer with the arrows. Bounce on the glowing clouds — " +
+    "each cloud sings one word of Surah " + surah.englishName + " in order. Land on the golden star to hear the whole ayah!",
+    async () => {
+      await QQ.speak(surah.kidIntro);
+      QQ.preload(surah.id, surah.verses[0].n);
+      paused = false;
+      P.vy = BOUNCE;
+    }
+  );
+})();
+</script>
+</body>
+</html>

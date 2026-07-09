@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Ayah Maze — Quran Quest</title>
+<link rel="stylesheet" href="../assets/css/shared.css" />
+<style>
+  body { background: #1e3a2f; overflow: hidden; }
+  #ayahBanner {
+    position: fixed; inset: 0; z-index: 35; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+    background: radial-gradient(ellipse at center, rgba(20,60,45,.9), rgba(10,35,25,.95));
+    backdrop-filter: blur(4px); text-align: center; padding: 20px;
+  }
+  #ayahBanner.show { display: flex; animation: qq-appear .4s ease; }
+  #ayahBanner .ab-emoji { font-size: 56px; animation: qq-float 2.5s ease-in-out infinite; }
+  #ayahBanner .ab-ar {
+    font-family: "Scheherazade New", serif; font-weight: 700; direction: rtl;
+    font-size: clamp(32px, 7vw, 60px); color: #d9f99d; line-height: 2;
+    text-shadow: 0 0 30px rgba(163,230,53,.5); max-width: 90vw;
+  }
+  #progress {
+    position: fixed; top: 74px; left: 50%; transform: translateX(-50%);
+    z-index: 40; display: flex; gap: 7px; background: rgba(255,255,255,.16);
+    padding: 7px 14px; border-radius: 999px; backdrop-filter: blur(4px);
+  }
+  #progress .p-dot { width: 13px; height: 13px; border-radius: 50%; background: rgba(255,255,255,.35); transition: all .3s; }
+  #progress .p-dot.done { background: #a3e635; box-shadow: 0 0 8px #a3e635; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ayahBanner"><div class="ab-emoji"></div><div class="ab-ar"></div></div>
+
+<script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
+<script>
+(async function () {
+  const surah = QQ.getSurah(QQ.param("surah"));
+  if (!surah) { location.href = "../index.html"; return; }
+  let level = Math.min(QQ.getLevel("maze", surah.slug), 3);
+  const V = surah.verses.length;
+
+  const cv = document.getElementById("cv");
+  const c = QQ.fitCanvas(cv);
+  QQ.hud(surah, "Ayah Maze");
+  const banner = document.getElementById("ayahBanner");
+  try { await document.fonts.load('700 48px "Scheherazade New"'); } catch (e) {}
+
+  const prog = document.createElement("div");
+  prog.id = "progress";
+  surah.verses.forEach(() => { const d = document.createElement("div"); d.className = "p-dot"; prog.appendChild(d); });
+  document.body.appendChild(prog);
+  const dots = [...prog.children];
+
+  // ---------- maze generation (recursive backtracker on odd grid) ----------
+  const COLS = 15, ROWS = 11; // odd numbers
+  let grid, doors, gems, room = -1, playerT, playerFrom, moveT = 1, facing = 1;
+  let paused = true, t = 0, wrongTalk = 0;
+
+  function genMaze(seed) {
+    let s = seed * 2654435761 % 4294967296;
+    const rnd = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const g = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
+    const stack = [[1, 1]];
+    g[1][1] = 0;
+    while (stack.length) {
+      const [cx, cy] = stack[stack.length - 1];
+      const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]].sort(() => rnd() - .5);
+      let moved = false;
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx > 0 && nx < COLS - 1 && ny > 0 && ny < ROWS - 1 && g[ny][nx] === 1) {
+          g[ny][nx] = 0; g[cy + dy / 2][cx + dx / 2] = 0;
+          stack.push([nx, ny]); moved = true; break;
+        }
+      }
+      if (!moved) stack.pop();
+    }
+    // extra loops so it's friendlier (few dead ends)
+    for (let i = 0; i < 6; i++) {
+      const x = 2 + 2 * Math.floor(rnd() * ((COLS - 3) / 2));
+      const y = 1 + 2 * Math.floor(rnd() * ((ROWS - 1) / 2));
+      if (y > 0 && y < ROWS - 1 && x > 1 && x < COLS - 1) g[y][x] = 0;
+    }
+    return { g, rnd };
+  }
+
+  // door candidate sets: room vi exit asks "which ayah comes after verse vi+1?"
+  function buildRoom(vi) {
+    const { g, rnd } = genMaze(surah.id * 100 + vi * 7 + level);
+    grid = g;
+    // entrance: left edge middle
+    grid[Math.floor(ROWS / 2)][0] = 0;
+    playerT = { x: 0, y: Math.floor(ROWS / 2) };
+    playerFrom = { ...playerT }; moveT = 1;
+    // doors: right edge
+    const nDoors = vi >= V - 1 ? 1 : (level === 1 ? 2 : 3);
+    const rows = [2, Math.floor(ROWS / 2), ROWS - 3].slice(0, 3);
+    const chosenRows = rows.sort(() => rnd() - .5).slice(0, nDoors).sort((a, b) => a - b);
+    // candidates: correct = verse vi+2 (index vi+1); decoys = other verses
+    const correctIdx = vi + 1;
+    const others = surah.verses.map((_, i) => i).filter(i => i !== correctIdx && i !== vi);
+    const decoys = others.sort(() => rnd() - .5).slice(0, nDoors - 1);
+    const cands = vi >= V - 1 ? [null] : [correctIdx, ...decoys].sort(() => rnd() - .5);
+    doors = chosenRows.map((r, k) => {
+      grid[r][COLS - 1] = 0; grid[r][COLS - 2] = 0; // carve access
+      if (grid[r][COLS - 3] === 1 && grid[r - 1][COLS - 2] === 1 && grid[r + 1] && grid[r + 1][COLS - 2] === 1) grid[r][COLS - 3] = 0;
+      return { x: COLS - 1, y: r, verseIdx: cands[k], heard: false, wob: 0, open: false, final: vi >= V - 1 };
+    });
+    // gems: replay current verse; place at random open cells on the right half
+    gems = [];
+    let tries = 0;
+    while (gems.length < 3 && tries++ < 200) {
+      const x = 3 + Math.floor(rnd() * (COLS - 5));
+      const y = 1 + Math.floor(rnd() * (ROWS - 2));
+      if (grid[y][x] === 0 && !(x < 3 && y === playerT.y) && !gems.some(g2 => g2.x === x && g2.y === y))
+        gems.push({ x, y, got: false, tw: rnd() * 6 });
+    }
+  }
+
+  // ---------- flow ----------
+  async function enterRoom(vi, first) {
+    room = vi;
+    buildRoom(vi);
+    paused = true;
+    const v = surah.verses[vi];
+    banner.querySelector(".ab-emoji").textContent = v.sceneEmoji;
+    banner.querySelector(".ab-ar").textContent = v.ar;
+    banner.classList.add("show");
+    if (first) QQ.sfx.whoosh();
+    await QQ.playVerse(surah.id, v.n);
+    await QQ.speak(v.meaning);
+    if (vi < V - 1) await QQ.speak("Now find the singing door with the next ayah!");
+    else await QQ.speak("Find the golden door!");
+    banner.classList.remove("show");
+    dots[vi].classList.add("done");
+    if (vi + 1 < V) QQ.preload(surah.id, surah.verses[vi + 1].n);
+    paused = false;
+  }
+
+  let doorBusy = false;
+  async function touchDoor(d) {
+    if (doorBusy) return;
+    if (d.final || d.verseIdx === room + 1) {
+      // correct!
+      doorBusy = true; paused = true;
+      d.open = true;
+      QQ.sfx.fanfare();
+      await QQ.wait(500);
+      doorBusy = false;
+      if (d.final) {
+        QQ.setLevel("maze", surah.slug, level + 1);
+        // grand replay of the whole surah on the finish card
+        QQ.finish(surah, "maze", level, () => location.reload());
+      } else {
+        enterRoom(room + 1, false);
+      }
+    } else {
+      d.wob = 12;
+      QQ.sfx.hm();
+      doorBusy = true;
+      await QQ.playVerse(surah.id, surah.verses[d.verseIdx].n, 1); // hear it anyway (still learning)
+      if (wrongTalk++ % 2 === 0) await QQ.speak("Hmm, that ayah is not next. Listen and try another door!");
+      doorBusy = false;
+    }
+  }
+
+  async function nearDoor(d) {
+    if (d.heard || doorBusy || d.final) return;
+    d.heard = true;
+    doorBusy = true;
+    QQ.sfx.step();
+    await QQ.playVerse(surah.id, surah.verses[d.verseIdx].n);
+    doorBusy = false;
+  }
+
+  // ---------- input: tile movement ----------
+  const keys = QQ.controls({ buttons: ["left", "up", "down", "right"] });
+  function tryMove() {
+    if (moveT < 1 || paused) return;
+    let dx = 0, dy = 0;
+    if (keys.left) dx = -1; else if (keys.right) dx = 1;
+    else if (keys.up) dy = -1; else if (keys.down) dy = 1;
+    if (!dx && !dy) return;
+    if (dx) facing = dx;
+    const nx = playerT.x + dx, ny = playerT.y + dy;
+    if (nx < 0 || ny < 0 || ny >= ROWS) return;
+    // stepping onto a door column tile = choosing that door
+    const d = doors.find(dd => dd.x === nx && dd.y === ny);
+    if (nx >= COLS) return;
+    if (grid[ny][nx] === 1) return;
+    if (d) { touchDoor(d); return; }
+    playerFrom = { ...playerT };
+    playerT = { x: nx, y: ny };
+    moveT = 0;
+    QQ.sfx.step();
+  }
+
+  // ---------- render ----------
+  function cellSize() {
+    return Math.min((innerWidth - 40) / COLS, (innerHeight - 150) / ROWS);
+  }
+  function origin() {
+    const cs = cellSize();
+    return { ox: (innerWidth - COLS * cs) / 2, oy: (innerHeight - ROWS * cs) / 2 + 30, cs };
+  }
+  function draw() {
+    const { ox, oy, cs } = origin();
+    // grass
+    const g = c.createLinearGradient(0, 0, 0, innerHeight);
+    g.addColorStop(0, "#2c5c3f"); g.addColorStop(1, "#1c4630");
+    c.fillStyle = g; c.fillRect(0, 0, innerWidth, innerHeight);
+    // soft light patches
+    for (let i = 0; i < 12; i++) {
+      c.globalAlpha = .05;
+      c.fillStyle = "#d9f99d";
+      c.beginPath(); c.arc((i * 331) % innerWidth, (i * 197) % innerHeight, 60 + (i % 4) * 30, 0, 7); c.fill();
+    }
+    c.globalAlpha = 1;
+    // maze floor
+    c.fillStyle = "#e8ddc3";
+    QQ.rr(c, ox - 8, oy - 8, COLS * cs + 16, ROWS * cs + 16, 18); c.fill();
+    // path tiles
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      if (grid[y][x] === 0) {
+        c.fillStyle = (x + y) % 2 ? "#f6eed8" : "#efe5cb";
+        c.fillRect(ox + x * cs, oy + y * cs, cs, cs);
+      }
+    }
+    // hedge walls (rounded blocks with slight 3D)
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      if (grid[y][x] === 1) {
+        const px = ox + x * cs, py = oy + y * cs;
+        c.fillStyle = "#37734b";
+        QQ.rr(c, px + 1, py + 1, cs - 2, cs - 2, cs * .3); c.fill();
+        c.fillStyle = "#4b8f60";
+        QQ.rr(c, px + 2, py + 1, cs - 4, cs - 7, cs * .3); c.fill();
+        // little leaf dots
+        c.fillStyle = "rgba(217,249,157,.35)";
+        c.beginPath(); c.arc(px + cs * .3, py + cs * .35, cs * .07, 0, 7); c.fill();
+        c.beginPath(); c.arc(px + cs * .68, py + cs * .55, cs * .06, 0, 7); c.fill();
+      }
+    }
+    // flowers on some floor corners
+    c.font = cs * .32 + "px serif";
+    for (let i = 0; i < 8; i++) {
+      const fx = (i * 5 + 3) % (COLS - 2) + 1, fy = (i * 3 + 2) % (ROWS - 2) + 1;
+      if (grid[fy] && grid[fy][fx] === 0) c.fillText(["🌸", "🌼", "🌷", "🍄"][i % 4], ox + fx * cs + cs * .55, oy + fy * cs + cs * .4);
+    }
+    // gems
+    gems.forEach(gm => {
+      if (gm.got) return;
+      const bob = Math.sin(t * .06 + gm.tw) * cs * .06;
+      const px = ox + gm.x * cs + cs / 2, py = oy + gm.y * cs + cs / 2 + bob;
+      c.save();
+      c.shadowColor = "#7dd3fc"; c.shadowBlur = 14;
+      c.fillStyle = "#7dd3fc";
+      c.beginPath();
+      c.moveTo(px, py - cs * .2); c.lineTo(px + cs * .16, py); c.lineTo(px, py + cs * .2); c.lineTo(px - cs * .16, py);
+      c.closePath(); c.fill();
+      c.restore();
+    });
+    // doors
+    doors.forEach(d => {
+      const wob = d.wob > 0 ? Math.sin(d.wob * 1.5) * 3 : 0;
+      if (d.wob > 0) d.wob -= .6;
+      const px = ox + d.x * cs + wob, py = oy + d.y * cs;
+      const pulse = .6 + Math.sin(t * .08) * .4;
+      c.save();
+      if (d.final) { c.shadowColor = "#fbbf24"; c.shadowBlur = 24 * pulse; }
+      else { c.shadowColor = "#a3e635"; c.shadowBlur = 16 * pulse; }
+      c.fillStyle = d.open ? "#fff7d6" : d.final ? "#fbbf24" : "#8b5a2b";
+      QQ.rr(c, px - cs * .1, py - cs * .15, cs * 1.1, cs * 1.3, cs * .3); c.fill();
+      c.restore();
+      c.fillStyle = d.open ? "#fde68a" : "rgba(255,255,255,.85)";
+      c.font = cs * .5 + "px serif";
+      c.textAlign = "center";
+      c.fillText(d.final ? "⭐" : d.open ? "✨" : "🔊", px + cs * .45, py + cs * .68);
+      c.textAlign = "left";
+    });
+    // player: little explorer with lantern glow
+    moveT = Math.min(1, moveT + .16);
+    const e = moveT < 1 ? moveT * moveT * (3 - 2 * moveT) : 1;
+    const plx = ox + (playerFrom.x + (playerT.x - playerFrom.x) * e) * cs + cs / 2;
+    const ply = oy + (playerFrom.y + (playerT.y - playerFrom.y) * e) * cs + cs / 2;
+    c.save();
+    c.globalAlpha = .18 + Math.sin(t * .05) * .05;
+    c.fillStyle = "#ffe9a8";
+    c.beginPath(); c.arc(plx, ply, cs * 1.4, 0, 7); c.fill();
+    c.restore();
+    const hop = moveT < 1 ? -Math.sin(e * Math.PI) * cs * .15 : 0;
+    c.fillStyle = "#fca5a5"; // body
+    QQ.rr(c, plx - cs * .22, ply - cs * .1 + hop, cs * .44, cs * .42, cs * .15); c.fill();
+    c.fillStyle = "#ffe1c4"; // head
+    c.beginPath(); c.arc(plx, ply - cs * .24 + hop, cs * .2, 0, 7); c.fill();
+    c.fillStyle = "#2b2350"; // eyes
+    c.beginPath(); c.arc(plx - cs * .07 * -facing + cs * .05 * facing, ply - cs * .26 + hop, cs * .035, 0, 7); c.fill();
+    c.beginPath(); c.arc(plx + cs * .11 * facing, ply - cs * .26 + hop, cs * .035, 0, 7); c.fill();
+    // lantern
+    c.fillStyle = "#fbbf24";
+    c.beginPath(); c.arc(plx + cs * .3 * facing, ply + hop, cs * .09 + Math.sin(t * .1) * cs * .015, 0, 7); c.fill();
+  }
+
+  function loop() {
+    t++;
+    tryMove();
+    if (!paused && moveT >= 1) {
+      // gem pickup
+      gems.forEach(async gm => {
+        if (!gm.got && gm.x === playerT.x && gm.y === playerT.y) {
+          gm.got = true;
+          QQ.sfx.pop();
+          if (!doorBusy) { doorBusy = true; await QQ.playVerse(surah.id, surah.verses[room].n); doorBusy = false; }
+        }
+      });
+      // proximity to doors → hear them (and re-hear after stepping away)
+      doors.forEach(d => {
+        const dist = Math.abs(d.x - 1 - playerT.x) + Math.abs(d.y - playerT.y);
+        if (dist <= 1 && playerT.x >= COLS - 3) nearDoor(d);
+        else if (dist > 3) d.heard = false;
+      });
+    }
+    if (grid) draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  QQ.startOverlay(
+    "Ayah Maze", "🏰",
+    "Welcome to the Ayah Maze! Walk with the arrows. Listen to the ayah, then find the singing doors. " +
+    "Walk into the door that sings the NEXT ayah of Surah " + surah.englishName + ". Collect the blue gems to hear the ayah again!",
+    () => enterRoom(0, true)
+  );
+})();
+</script>
+</body>
+</html>

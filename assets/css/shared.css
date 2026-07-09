@@ -1,0 +1,125 @@
+/* Quran Quest — shared styles */
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Scheherazade+New:wght@500;700&display=swap");
+
+:root {
+  --ink: #2b2350;
+  --paper: #fffdf7;
+  --sky1: #a5b4fc;
+  --sky2: #fbcfe8;
+  --gold: #fbbf24;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ar { font-family: "Scheherazade New", "Amiri", serif; direction: rtl; }
+button { font-family: inherit; cursor: pointer; border: none; }
+canvas { display: block; touch-action: none; }
+
+/* ---------- start overlay ---------- */
+.qq-start {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, #4c3f91 0%, #2b2350 70%);
+  transition: opacity 0.5s ease, visibility 0.5s;
+}
+.qq-start.qq-hide { opacity: 0; visibility: hidden; }
+.qq-start-card { text-align: center; animation: qq-float 3s ease-in-out infinite; }
+.qq-start-emoji { font-size: 96px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.35)); }
+.qq-start-title {
+  color: #fff; font-size: clamp(28px, 6vw, 48px); font-weight: 700;
+  margin: 8px 0 24px; text-shadow: 0 4px 14px rgba(0,0,0,.3);
+}
+.qq-start-btn {
+  width: 110px; height: 110px; border-radius: 50%;
+  font-size: 44px; color: #7c2d12;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  box-shadow: 0 10px 0 #b45309, 0 18px 30px rgba(0,0,0,.35);
+  transition: transform 0.12s ease;
+}
+.qq-start-btn:active { transform: translateY(6px); box-shadow: 0 4px 0 #b45309; }
+
+/* ---------- HUD ---------- */
+.qq-hud {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; pointer-events: none;
+}
+.qq-hud > * { pointer-events: auto; }
+.qq-hud-btn {
+  width: 54px; height: 54px; border-radius: 18px; font-size: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.85); backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px rgba(43,35,80,.2); text-decoration: none;
+}
+.qq-hud-title {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.85); backdrop-filter: blur(6px);
+  border-radius: 20px; padding: 6px 18px;
+  box-shadow: 0 4px 12px rgba(43,35,80,.2);
+}
+.qq-hud-emoji { font-size: 24px; }
+.qq-hud-ar { font-family: "Scheherazade New", serif; font-size: 26px; font-weight: 700; }
+
+/* ---------- touch pad ---------- */
+.qq-pad {
+  position: fixed; bottom: 14px; left: 0; right: 0; z-index: 40;
+  display: flex; justify-content: center; gap: 18px;
+}
+.qq-pad-btn {
+  width: 74px; height: 74px; border-radius: 26px; font-size: 30px;
+  background: rgba(255,255,255,.75); backdrop-filter: blur(6px);
+  box-shadow: 0 6px 0 rgba(43,35,80,.25);
+  touch-action: none;
+}
+.qq-pad-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(43,35,80,.25); }
+@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
+  .qq-pad { opacity: 0.45; }
+}
+
+/* ---------- confetti / finish ---------- */
+.qq-confetti {
+  position: fixed; top: -30px; z-index: 70; pointer-events: none;
+  animation: qq-fall 2.6s linear forwards;
+}
+@keyframes qq-fall {
+  to { transform: translateY(110vh) rotate(540deg); opacity: 0.6; }
+}
+.qq-finish {
+  position: fixed; inset: 0; z-index: 65;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(43, 35, 80, 0.55); backdrop-filter: blur(6px);
+  animation: qq-appear 0.4s ease;
+}
+.qq-finish-card {
+  background: var(--paper); border-radius: 36px; padding: 34px 44px;
+  text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.35);
+  animation: qq-bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  max-width: min(92vw, 460px);
+}
+.qq-finish-emoji { font-size: 76px; }
+.qq-finish-stars { font-size: 44px; letter-spacing: 6px; margin: 6px 0; }
+.qq-finish-ar {
+  font-family: "Scheherazade New", serif; font-size: clamp(26px, 5vw, 40px);
+  font-weight: 700; margin: 6px 0 18px; direction: rtl; line-height: 1.9;
+}
+.qq-finish-row { display: flex; gap: 16px; justify-content: center; }
+.qq-big-btn {
+  width: 84px; height: 84px; border-radius: 28px; font-size: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #ffffff, #e9e4ff);
+  box-shadow: 0 8px 0 #c7bff0, 0 12px 22px rgba(43,35,80,.22);
+  text-decoration: none; transition: transform 0.12s;
+}
+.qq-big-btn:active { transform: translateY(5px); box-shadow: 0 3px 0 #c7bff0; }
+
+.qq-pulse { animation: qq-pulse 0.9s ease; }
+@keyframes qq-pulse { 30% { transform: scale(1.12); color: #b45309; } }
+@keyframes qq-float { 50% { transform: translateY(-12px); } }
+@keyframes qq-appear { from { opacity: 0; } }
+@keyframes qq-bounce-in { from { transform: scale(0.6); opacity: 0; } }

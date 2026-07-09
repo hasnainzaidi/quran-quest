@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Story Voyage — Quran Quest</title>
+<link rel="stylesheet" href="../assets/css/shared.css" />
+<style>
+  body { overflow: hidden; height: 100vh; background: #0e2a4a; }
+  .stage { position: fixed; inset: 0; transition: background 1.2s ease; }
+
+  /* ---------- voyage scene ---------- */
+  .sun { position: absolute; top: 9vh; right: 12vw; width: 90px; height: 90px; border-radius: 50%;
+    background: radial-gradient(circle, #fff7d6, #fbbf24 65%, transparent 70%);
+    box-shadow: 0 0 80px 30px rgba(251,191,36,.35); animation: qq-float 5s ease-in-out infinite; }
+  .sea { position: absolute; left: 0; right: 0; bottom: 0; height: 34vh;
+    background: linear-gradient(180deg, #2f6db3, #16436f); overflow: hidden; }
+  .wave { position: absolute; left: -60vw; width: 220vw; height: 46px; opacity: .5;
+    border-radius: 45%; background: rgba(255,255,255,.16); animation: drift 7s linear infinite; }
+  .wave:nth-child(2) { top: 26px; animation-duration: 9.5s; opacity: .3; }
+  .wave:nth-child(3) { top: 54px; animation-duration: 12s; opacity: .22; }
+  @keyframes drift { from { transform: translateX(0) } to { transform: translateX(28vw) } }
+  .island { position: absolute; bottom: 21vh; left: 50%; transform: translateX(-50%);
+    width: min(64vw, 460px); height: 150px; }
+  .island .land { position: absolute; bottom: 0; left: 0; right: 0; height: 84px;
+    background: linear-gradient(180deg, #7cbf6b, #4d8a4a); border-radius: 50% 50% 22px 22px / 90% 90% 22px 22px;
+    box-shadow: 0 12px 0 #c2a26b, 0 26px 34px rgba(0,0,0,.3); }
+  .island .big-emoji { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    font-size: clamp(70px, 15vw, 120px); filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
+    animation: qq-float 3.4s ease-in-out infinite; }
+  .boat { position: fixed; bottom: 17vh; left: -18vw; font-size: 74px; z-index: 5;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,.4));
+    transition: left 2.2s cubic-bezier(.45,.05,.55,.95); animation: rock 3s ease-in-out infinite; }
+  @keyframes rock { 50% { transform: rotate(4deg) translateY(-6px) } }
+
+  .versebox { position: absolute; top: 12vh; left: 50%; transform: translateX(-50%);
+    width: min(92vw, 760px); text-align: center; z-index: 6; }
+  .v-ar { font-family: "Scheherazade New", serif; font-weight: 700; direction: rtl;
+    font-size: clamp(30px, 6.5vw, 54px); color: #fff; line-height: 2;
+    text-shadow: 0 3px 18px rgba(0,0,0,.45); }
+  .v-ar.qq-pulse { color: #ffe9a8; }
+  .wordchips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; direction: rtl; }
+  .chip { font-family: "Scheherazade New", serif; font-size: clamp(19px, 3.4vw, 27px); font-weight: 700;
+    background: rgba(255,255,255,.92); color: var(--ink); padding: 4px 15px; border-radius: 999px;
+    box-shadow: 0 4px 0 rgba(0,0,0,.18); transition: transform .12s; }
+  .chip:active { transform: scale(1.15) translateY(-4px); background: #ffe9a8; }
+  .chip.lit { background: #ffe9a8; }
+
+  .scene-controls { position: fixed; bottom: 4vh; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 20px; z-index: 10; }
+
+  /* your-turn sparkle */
+  #yourTurn { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 8px; pointer-events: none; }
+  #yourTurn.show { display: flex; }
+  #yourTurn .yt-mic { font-size: 90px; animation: qq-float 1.6s ease-in-out infinite; filter: drop-shadow(0 0 30px #fbbf24); }
+  #yourTurn .yt-dots { display: flex; gap: 14px; }
+  #yourTurn .yt-dots span { width: 20px; height: 20px; border-radius: 50%; background: #fbbf24; opacity: .25; }
+  #yourTurn .yt-dots span.on { opacity: 1; box-shadow: 0 0 14px #fbbf24; }
+
+  /* ---------- retell map ---------- */
+  #map { position: fixed; inset: 0; display: none; }
+  #map.show { display: block; }
+  .m-island { position: absolute; width: 120px; height: 110px; text-align: center; transition: transform .15s; }
+  .m-island .m-land { width: 110px; height: 62px; margin: 42px auto 0;
+    background: linear-gradient(180deg, #7cbf6b, #4d8a4a); border-radius: 50% 50% 18px 18px / 85% 85% 18px 18px;
+    box-shadow: 0 8px 0 #c2a26b, 0 16px 22px rgba(0,0,0,.3); }
+  .m-island .m-emoji { position: absolute; top: 6px; left: 0; right: 0; font-size: 46px;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.3)); }
+  .m-island.hidden-emoji .m-emoji { filter: blur(14px) brightness(1.4); }
+  .m-island.done .m-emoji { filter: none; }
+  .m-island.done .m-land { background: linear-gradient(180deg, #ffe9a8, #f4c542); }
+  .m-island.wrong { animation: wobble .5s ease; }
+  @keyframes wobble { 25% { transform: rotate(-6deg) } 75% { transform: rotate(6deg) } }
+  .m-island .m-num { position: absolute; top: -14px; right: 4px; width: 30px; height: 30px; border-radius: 50%;
+    background: #fbbf24; color: #7c2d12; font-weight: 700; font-size: 17px; display: none;
+    align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,.3); }
+  .m-island.done .m-num { display: flex; }
+  #mapTitle { position: fixed; top: 84px; left: 0; right: 0; text-align: center; color: #fff; z-index: 5;
+    font-size: clamp(20px, 4vw, 30px); font-weight: 700; text-shadow: 0 3px 12px rgba(0,0,0,.5); }
+  #mapBoat { position: fixed; font-size: 56px; z-index: 8; transition: left 1.6s ease, top 1.6s ease;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,.4)); animation: rock 3s ease-in-out infinite; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="sun" id="sun"></div>
+  <div class="versebox">
+    <div class="v-ar" id="vAr"></div>
+    <div class="wordchips" id="chips"></div>
+  </div>
+  <div class="island"><span class="big-emoji" id="bigEmoji">🏝️</span><div class="land"></div></div>
+  <div class="sea"><div class="wave"></div><div class="wave"></div><div class="wave"></div></div>
+  <div class="boat" id="boat">⛵</div>
+  <div class="scene-controls">
+    <button class="qq-big-btn" id="btnHear" aria-label="Hear again">🔊</button>
+    <button class="qq-big-btn" id="btnEcho" aria-label="Your turn">🎤</button>
+    <button class="qq-big-btn" id="btnNext" aria-label="Next">➡️</button>
+  </div>
+</div>
+
+<div id="yourTurn"><div class="yt-mic">🎤</div><div class="yt-dots"><span></span><span></span><span></span></div></div>
+
+<div id="map">
+  <div id="mapTitle">🗺️ Tell the story in order!</div>
+  <div id="mapBoat">⛵</div>
+</div>
+
+<script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
+<script>
+(async function () {
+  const surah = QQ.getSurah(QQ.param("surah"));
+  if (!surah) { location.href = "../index.html"; return; }
+  let level = Math.min(QQ.getLevel("story", surah.slug), 3);
+  const V = surah.verses.length;
+  QQ.hud(surah, "Story Voyage");
+  try { await document.fonts.load('700 48px "Scheherazade New"'); } catch (e) {}
+
+  const stage = document.getElementById("stage");
+  const boat = document.getElementById("boat");
+  const vAr = document.getElementById("vAr");
+  const chips = document.getElementById("chips");
+  const bigEmoji = document.getElementById("bigEmoji");
+  const yourTurn = document.getElementById("yourTurn");
+  let vi = 0, busy = false;
+
+  // sky palettes per verse position (dawn → day → sunset → night)
+  function skyFor(i) {
+    const p = V === 1 ? 0 : i / (V - 1);
+    const hues = [[210, 60, 30], [200, 70, 55], [35, 90, 62], [265, 55, 30]];
+    const seg = Math.min(2, Math.floor(p * 3));
+    const f = p * 3 - seg;
+    const mix = (a, b) => a + (b - a) * f;
+    const h1 = hues[seg], h2 = hues[seg + 1];
+    return `linear-gradient(180deg,
+      hsl(${mix(h1[0], h2[0])}, ${mix(h1[1], h2[1])}%, ${mix(h1[2], h2[2]) * .6}%) 0%,
+      hsl(${mix(h1[0], h2[0])}, ${mix(h1[1], h2[1])}%, ${mix(h1[2], h2[2])}%) 70%)`;
+  }
+
+  async function playScene(first) {
+    busy = true;
+    const v = surah.verses[vi];
+    stage.style.background = skyFor(vi);
+    bigEmoji.textContent = v.sceneEmoji;
+    vAr.textContent = v.ar;
+    chips.innerHTML = "";
+    v.words.forEach((w) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.textContent = w.ar;
+      b.onclick = async () => {
+        if (busy) return;
+        b.classList.add("lit");
+        QQ.sfx.step();
+        await QQ.playWord(w.audio);
+        QQ.speak(w.gloss);
+      };
+      chips.appendChild(b);
+    });
+    // boat sails in
+    boat.style.left = "-18vw";
+    await QQ.wait(80);
+    boat.style.left = "12vw";
+    QQ.sfx.whoosh();
+    await QQ.wait(first ? 2100 : 1400);
+    vAr.classList.remove("qq-pulse"); void vAr.offsetWidth; vAr.classList.add("qq-pulse");
+    await QQ.playVerse(surah.id, v.n);
+    await QQ.speak(v.meaning);
+    if (vi + 1 < V) QQ.preload(surah.id, surah.verses[vi + 1].n);
+    busy = false;
+  }
+
+  document.getElementById("btnHear").onclick = async () => {
+    if (busy) return; busy = true;
+    QQ.stopAudio();
+    vAr.classList.remove("qq-pulse"); void vAr.offsetWidth; vAr.classList.add("qq-pulse");
+    await QQ.playVerse(surah.id, surah.verses[vi].n);
+    busy = false;
+  };
+
+  // Echo: hear it slowly, then "your turn" sparkle pause to recite out loud
+  document.getElementById("btnEcho").onclick = async () => {
+    if (busy) return; busy = true;
+    QQ.stopAudio();
+    await QQ.playVerse(surah.id, surah.verses[vi].n, 0.85);
+    await QQ.speak("Your turn! Say it out loud!");
+    yourTurn.classList.add("show");
+    const dots = yourTurn.querySelectorAll(".yt-dots span");
+    for (const d of dots) { d.classList.add("on"); QQ.sfx.step(); await QQ.wait(1300); }
+    dots.forEach(d => d.classList.remove("on"));
+    yourTurn.classList.remove("show");
+    QQ.sfx.ding();
+    await QQ.speak("Beautiful!");
+    busy = false;
+  };
+
+  document.getElementById("btnNext").onclick = async () => {
+    if (busy) return;
+    QQ.stopAudio();
+    vi++;
+    if (vi < V) { playScene(false); }
+    else startRetell();
+  };
+
+  // ---------- retell map ----------
+  const map = document.getElementById("map");
+  const mapBoat = document.getElementById("mapBoat");
+  function startRetell() {
+    stage.style.display = "none";
+    document.querySelector(".scene-controls").style.display = "none";
+    map.classList.add("show");
+    map.style.background = "linear-gradient(180deg, #16436f, #0e2a4a)";
+    QQ.speak("Now tell the story! Tap the islands in order, from the first ayah to the last!");
+
+    // scatter islands (deterministic, non-overlapping-ish grid jitter)
+    const order = surah.verses.map((_, i) => i).sort(() => Math.sin(surah.id * 999 + level * 31 + 1) - .5 + Math.random() - .5);
+    const cols = Math.ceil(Math.sqrt(V));
+    const rows = Math.ceil(V / cols);
+    let expected = 0, done = 0;
+    order.forEach((verseIdx, k) => {
+      const col = k % cols, row = Math.floor(k / cols);
+      const el = document.createElement("div");
+      el.className = "m-island" + (level >= 2 ? " hidden-emoji" : "");
+      el.innerHTML = `<div class="m-num"></div><div class="m-emoji">${surah.verses[verseIdx].sceneEmoji}</div><div class="m-land"></div>`;
+      const x = 8 + (col + .5) / cols * 78 + ((k * 13) % 7) - 3;
+      const y = 22 + (row + .5) / rows * 58 + ((k * 7) % 9) - 4;
+      el.style.left = x + "vw"; el.style.top = y + "vh";
+      map.appendChild(el);
+      el.addEventListener("click", async () => {
+        if (busy || el.classList.contains("done")) return;
+        busy = true;
+        await QQ.playVerse(surah.id, surah.verses[verseIdx].n);
+        if (verseIdx === expected) {
+          el.classList.add("done");
+          el.querySelector(".m-num").textContent = expected + 1;
+          mapBoat.style.left = "calc(" + x + "vw + 30px)";
+          mapBoat.style.top = "calc(" + y + "vh + 55px)";
+          QQ.sfx.ding();
+          expected++; done++;
+          if (done === V) {
+            await QQ.wait(1400);
+            QQ.setLevel("story", surah.slug, level + 1);
+            QQ.finish(surah, "story", level, () => location.reload());
+          } else if (done % 2 === 1) QQ.speak(["Yes!", "That comes next!", "Great remembering!"][done % 3]);
+        } else {
+          el.classList.remove("wrong"); void el.offsetWidth; el.classList.add("wrong");
+          QQ.sfx.hm();
+          if (Math.random() < .5) QQ.speak("Hmm, which ayah comes " + (expected === 0 ? "first" : "next") + "? Listen carefully!");
+        }
+        busy = false;
+      });
+    });
+    mapBoat.style.left = "2vw";
+    mapBoat.style.top = "45vh";
+  }
+
+  QQ.startOverlay(
+    "Story Voyage", "⛵",
+    "All aboard the story boat! We will sail to every island of Surah " + surah.englishName + ". " +
+    "At each island, listen to the ayah, tap the words, and try saying it yourself with the microphone button. Then sail on!",
+    async () => {
+      await QQ.speak(surah.kidIntro);
+      playScene(true);
+    }
+  );
+})();
+</script>
+</body>
+</html>

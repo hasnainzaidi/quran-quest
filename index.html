@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Quran Quest — Learn Surahs Through Play</title>
+<link rel="stylesheet" href="assets/css/shared.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>" />
+<style>
+  body {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #312a6b 0%, #5b4a9f 34%, #a78bda 62%, #fcd9a8 100%);
+    background-attachment: fixed;
+  }
+  .stars-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .stars-bg span { position: absolute; color: #fff; opacity: .8; animation: twinkle 2.6s ease-in-out infinite; }
+  @keyframes twinkle { 50% { opacity: .15; transform: scale(.7); } }
+
+  header { position: relative; z-index: 1; text-align: center; padding: 42px 16px 8px; }
+  .logo-moon { font-size: 74px; display: inline-block; animation: qq-float 4s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(0,0,0,.3)); }
+  h1 { color: #fff; font-size: clamp(34px, 7vw, 56px); margin: 6px 0 2px; text-shadow: 0 4px 18px rgba(0,0,0,.35); letter-spacing: 1px; }
+  .subtitle { color: #e9e2ff; font-size: 18px; margin-bottom: 6px; }
+  .hear-btn {
+    margin-top: 10px; padding: 12px 28px; border-radius: 999px; font-size: 19px; font-weight: 600;
+    background: rgba(255,255,255,.18); color: #fff; border: 2px solid rgba(255,255,255,.5);
+    backdrop-filter: blur(4px);
+  }
+  .hear-btn:active { transform: scale(.96); }
+
+  .grid {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 22px; padding: 30px clamp(14px, 4vw, 60px) 80px; max-width: 1250px; margin: 0 auto;
+  }
+  .card {
+    background: rgba(255, 253, 247, .96); border-radius: 30px; padding: 20px 20px 16px;
+    box-shadow: 0 14px 34px rgba(30, 20, 70, .30);
+    transition: transform .18s ease, box-shadow .18s ease;
+    animation: card-in .5s ease backwards;
+  }
+  .card:hover { transform: translateY(-6px); box-shadow: 0 22px 44px rgba(30,20,70,.36); }
+  @keyframes card-in { from { transform: translateY(24px); opacity: 0; } }
+  .card-top { display: flex; align-items: center; gap: 14px; }
+  .card-emoji {
+    width: 66px; height: 66px; border-radius: 22px; font-size: 36px;
+    display: flex; align-items: center; justify-content: center; flex: none;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,.08);
+  }
+  .card-names { flex: 1; min-width: 0; }
+  .card-ar { font-family: "Scheherazade New", serif; font-size: 30px; font-weight: 700; line-height: 1.15; }
+  .card-en { font-size: 15px; opacity: .75; font-weight: 500; }
+  .card-stars { font-size: 15px; letter-spacing: 1px; margin: 8px 0 4px; min-height: 20px; }
+  .card-listen {
+    width: 100%; margin: 4px 0 12px; padding: 10px; border-radius: 16px; font-size: 17px; font-weight: 600;
+    background: #f1edff; color: var(--ink); display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .card-listen:active { transform: scale(.97); }
+  .card-listen.playing { background: #ffe9b8; }
+  .games-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .game-btn {
+    border-radius: 18px; padding: 10px 4px 8px; text-align: center; text-decoration: none; color: var(--ink);
+    background: linear-gradient(180deg, #fff, #efeafd);
+    box-shadow: 0 5px 0 #d4c9f2; transition: transform .12s;
+  }
+  .game-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #d4c9f2; }
+  .game-btn .gi { font-size: 27px; display: block; }
+  .game-btn .gs { font-size: 11.5px; font-weight: 600; opacity: .8; }
+  .hills { position: fixed; bottom: -12px; left: 0; right: 0; z-index: 0; pointer-events: none; }
+  footer { position: relative; z-index: 1; text-align: center; color: rgba(255,255,255,.85); padding: 0 20px 26px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="stars-bg" id="starsBg"></div>
+<svg class="hills" viewBox="0 0 1440 140" preserveAspectRatio="none" height="140" width="100%">
+  <path d="M0,80 C240,10 420,110 720,60 C1020,10 1240,100 1440,50 L1440,140 L0,140 Z" fill="rgba(255,214,158,.55)"/>
+  <path d="M0,110 C300,60 560,130 860,90 C1160,50 1300,120 1440,90 L1440,140 L0,140 Z" fill="rgba(255,190,120,.65)"/>
+</svg>
+
+<header>
+  <span class="logo-moon">🌙</span>
+  <h1>Quran Quest</h1>
+  <div class="subtitle">Learn beautiful surahs through play</div>
+  <button class="hear-btn" id="introBtn">🔊 How do I play?</button>
+</header>
+
+<main class="grid" id="grid"></main>
+
+<footer>Recitation: Mishary Rashid Alafasy · Made with 💛 for little reciters</footer>
+
+<script src="assets/js/surahs.js"></script>
+<script src="assets/js/engine.js" data-audio-base="audio/"></script>
+<script>
+  // twinkling stars
+  const bg = document.getElementById("starsBg");
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement("span");
+    s.textContent = Math.random() > 0.7 ? "✦" : "·";
+    s.style.left = Math.random() * 100 + "vw";
+    s.style.top = Math.random() * 100 + "vh";
+    s.style.fontSize = 6 + Math.random() * 14 + "px";
+    s.style.animationDelay = Math.random() * 3 + "s";
+    bg.appendChild(s);
+  }
+
+  const GAMES = [
+    { id: "starpath", icon: "🌟", name: "Star Path", file: "star-path" },
+    { id: "maze", icon: "🏰", name: "Maze", file: "maze" },
+    { id: "story", icon: "⛵", name: "Story", file: "story" },
+    { id: "jumper", icon: "☁️", name: "Jumper", file: "jumper" },
+  ];
+
+  const grid = document.getElementById("grid");
+  let playingBtn = null;
+
+  QQ.surahs().forEach((s, idx) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.animationDelay = idx * 0.05 + "s";
+    const stars = QQ.totalStars(s.slug);
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-emoji" style="background:${s.color}22; border:2px solid ${s.color}55">${s.emoji}</div>
+        <div class="card-names">
+          <div class="card-ar">${s.arabicName}</div>
+          <div class="card-en">${s.englishName} · ${s.meaningName}</div>
+        </div>
+      </div>
+      <div class="card-stars">${stars > 0 ? "⭐".repeat(Math.min(stars, 12)) : "&nbsp;"}</div>
+      <button class="card-listen">🎧 Listen</button>
+      <div class="games-row">
+        ${GAMES.map(g => `<a class="game-btn" href="games/${g.file}.html?surah=${s.slug}"><span class="gi">${g.icon}</span><span class="gs">${g.name}</span></a>`).join("")}
+      </div>`;
+    // listen = name spoken + full surah playback (passive listening builds memory)
+    const btn = card.querySelector(".card-listen");
+    const arEl = card.querySelector(".card-ar");
+    btn.addEventListener("click", async () => {
+      if (btn.classList.contains("playing")) { QQ.stopAudio(); btn.classList.remove("playing"); btn.innerHTML = "🎧 Listen"; return; }
+      if (playingBtn) { playingBtn.classList.remove("playing"); playingBtn.innerHTML = "🎧 Listen"; }
+      playingBtn = btn;
+      QQ.stopAudio();
+      btn.classList.add("playing"); btn.innerHTML = "⏹ Playing…";
+      await QQ.speak("Surah " + s.englishName + ". " + s.kidIntro);
+      await QQ.playSurah(s, v => { arEl.textContent = v.ar; arEl.classList.remove("qq-pulse"); void arEl.offsetWidth; arEl.classList.add("qq-pulse"); });
+      arEl.textContent = s.arabicName;
+      btn.classList.remove("playing"); btn.innerHTML = "🎧 Listen";
+    });
+    grid.appendChild(card);
+  });
+
+  document.getElementById("introBtn").addEventListener("click", () => {
+    QQ.speak("Welcome to Quran Quest! Pick a surah card. Press the headphones to listen. " +
+      "Then pick a game! Catch the star words on Star Path. Find the singing doors in the Maze. " +
+      "Sail the story boat. Or jump up the clouds! Every game teaches you the surah. Have fun!", { force: true });
+  });
+</script>
+</body>
+</html>
