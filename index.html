@@ -88,6 +88,7 @@
 <footer>Recitation: Mishary Rashid Alafasy · Made with 💛 for little reciters</footer>
 
 <script src="assets/js/surahs.js"></script>
+<script src="assets/js/voice-manifest.js"></script>
 <script src="assets/js/engine.js" data-audio-base="audio/"></script>
 <script>
   // twinkling stars
@@ -139,7 +140,7 @@
       playingBtn = btn;
       QQ.stopAudio();
       btn.classList.add("playing"); btn.innerHTML = "⏹ Playing…";
-      await QQ.speak("Surah " + s.englishName + ". " + s.kidIntro);
+      await QQ.speakIntro(s);
       await QQ.playSurah(s, v => { arEl.textContent = v.ar; arEl.classList.remove("qq-pulse"); void arEl.offsetWidth; arEl.classList.add("qq-pulse"); });
       arEl.textContent = s.arabicName;
       btn.classList.remove("playing"); btn.innerHTML = "🎧 Listen";

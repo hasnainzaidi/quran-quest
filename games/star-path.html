@@ -52,6 +52,7 @@
 <div id="ayahBanner"><div class="ab-glow">✨</div><div class="ab-ar"></div></div>
 
 <script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/voice-manifest.js"></script>
 <script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
 <script>
 (async function () {
@@ -329,9 +330,9 @@
   QQ.startOverlay(
     "Star Path", "🌟",
     "Welcome to Star Path! Fly with the arrows, and catch the glowing word stars in order. " +
-    "Each star sings one word of Surah " + surah.englishName + ". When you catch them all, fly through the golden gate!",
+    "Each star sings one word of the surah. When you catch them all, fly through the golden gate!",
     async () => {
-      await QQ.speak(surah.kidIntro);
+      await QQ.speakIntro(surah);
       QQ.preload(surah.id, surah.verses[0].n);
       paused = false;
     }

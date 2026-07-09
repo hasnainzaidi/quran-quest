@@ -84,13 +84,25 @@
   };
   QQ.wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---------- text-to-speech (all guidance is spoken; the child can't read) ----------
+  // ---------- spoken guidance (all guidance is spoken; the child can't read) ----------
+  // Pre-generated ElevenLabs clips (see tools/gen-voice.mjs) are used when
+  // available (looked up by text hash in window.QQ_VOICE); otherwise falls
+  // back to the browser's speech synthesis.
+  QQ.normText = (s) =>
+    String(s).replace(/[\[\]()]/g, "").replace(/\s+/g, " ").trim();
+  QQ.textKey = (s) => {
+    s = QQ.normText(s);
+    let x = 5381;
+    for (let i = 0; i < s.length; i++) x = ((x * 33) ^ s.charCodeAt(i)) >>> 0;
+    return x.toString(36);
+  };
   let voice = null;
   function pickVoice() {
     const vs = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
     voice =
       vs.find((v) => /child|kids|junior/i.test(v.name)) ||
-      vs.find((v) => /Samantha|Google US English|Zira|Aria/i.test(v.name)) ||
+      vs.find((v) => /Samantha|Google US English|Zira|Aria|Karen|Moira/i.test(v.name)) ||
+      vs.find((v) => /female/i.test(v.name)) ||
       vs[0] || null;
   }
   if ("speechSynthesis" in window) {
@@ -101,13 +113,18 @@
   QQ.setVoice = (on) => localStorage.setItem("qq_voice", on ? "on" : "off");
   QQ.speak = (text, opts) => {
     opts = opts || {};
-    if (!("speechSynthesis" in window) || (!opts.force && !QQ.voiceOn()))
-      return Promise.resolve(false);
+    if (!opts.force && !QQ.voiceOn()) return Promise.resolve(false);
+    // 1) pre-generated warm voice clip
+    const key = QQ.textKey(text);
+    if (window.QQ_VOICE && window.QQ_VOICE[key])
+      return playUrl(BASE + "voice/" + key + ".mp3");
+    // 2) browser speech synthesis fallback
+    if (!("speechSynthesis" in window)) return Promise.resolve(false);
     return new Promise((resolve) => {
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(QQ.normText(text));
       if (voice) u.voice = voice;
-      u.rate = opts.rate || 0.95;
-      u.pitch = opts.pitch || 1.05;
+      u.rate = opts.rate || 0.92;
+      u.pitch = opts.pitch || 1.08;
       u.onend = () => resolve(true);
       u.onerror = () => resolve(false);
       speechSynthesis.cancel();
@@ -115,6 +132,9 @@
       setTimeout(() => resolve(false), 20000);
     });
   };
+  // one warm intro clip per surah, shared by hub and all games
+  QQ.introText = (s) => "Surah " + s.englishName + "! " + s.kidIntro;
+  QQ.speakIntro = (s, opts) => QQ.speak(QQ.introText(s), opts);
 
   // ---------- tiny synth sfx (no audio files needed) ----------
   let ctx = null;

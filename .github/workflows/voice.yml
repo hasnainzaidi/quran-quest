@@ -1,0 +1,42 @@
+name: Generate voice clips
+
+# Pre-generates all spoken lines with ElevenLabs and commits them.
+# Requires the ELEVENLABS_API_KEY repository secret.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/gen-voice.mjs"
+      - "assets/js/surahs.js"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: voice
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate clips
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: node tools/gen-voice.mjs
+      - name: Commit and deploy
+        run: |
+          git config user.name "voice-bot"
+          git config user.email "actions@github.com"
+          git add audio/voice assets/js/voice-manifest.js
+          if git diff --cached --quiet; then
+            echo "No new clips."
+          else
+            git commit -m "Add generated voice clips"
+            git push origin HEAD:main
+          fi
+          git push origin HEAD:gh-pages --force

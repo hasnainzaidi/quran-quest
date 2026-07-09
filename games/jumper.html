@@ -40,6 +40,7 @@
 <div id="ayahBanner"><div class="ab-star">🌟</div><div class="ab-ar"></div></div>
 
 <script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/voice-manifest.js"></script>
 <script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
 <script>
 (async function () {
@@ -346,9 +347,9 @@
   QQ.startOverlay(
     "Sky Jumper", "☁️",
     "Time to jump up to the moon! Steer with the arrows. Bounce on the glowing clouds — " +
-    "each cloud sings one word of Surah " + surah.englishName + " in order. Land on the golden star to hear the whole ayah!",
+    "each cloud sings one word of the surah in order. Land on the golden star to hear the whole ayah!",
     async () => {
-      await QQ.speak(surah.kidIntro);
+      await QQ.speakIntro(surah);
       QQ.preload(surah.id, surah.verses[0].n);
       paused = false;
       P.vy = BOUNCE;

@@ -107,6 +107,7 @@
 </div>
 
 <script src="../assets/js/surahs.js"></script>
+<script src="../assets/js/voice-manifest.js"></script>
 <script src="../assets/js/engine.js" data-audio-base="../audio/"></script>
 <script>
 (async function () {
@@ -257,10 +258,10 @@
 
   QQ.startOverlay(
     "Story Voyage", "⛵",
-    "All aboard the story boat! We will sail to every island of Surah " + surah.englishName + ". " +
+    "All aboard the story boat! We will sail to every island of the surah. " +
     "At each island, listen to the ayah, tap the words, and try saying it yourself with the microphone button. Then sail on!",
     async () => {
-      await QQ.speak(surah.kidIntro);
+      await QQ.speakIntro(surah);
       playScene(true);
     }
   );
