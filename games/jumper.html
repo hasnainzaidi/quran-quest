@@ -65,7 +65,7 @@
   const dots = [...prog.children];
 
   // ---------- build the sky (world y: 0 at base, NEGATIVE going up) ----------
-  const STEP = 150;
+  const STEP = 118;
   let clouds = [], seq = [], moon = null;
   function margin() { return Math.min(W() * .16, 130); }
   function zig(i, span) {
@@ -81,10 +81,14 @@
       v.words.forEach((w, wi) => {
         const cl = { x: zig(idx), y, w: 128, type: "word", vi, wi, word: w, done: false, seqI: seq.length, drift: level >= 3 && idx % 3 === 0 ? 1 : 0, t0: Math.random() * 9 };
         clouds.push(cl); seq.push(cl);
-        // decoy next to it (levels 2-3): same verse, wrong position word
+        // decoy next to it (levels 2-3): same verse, wrong position word —
+        // kept well away horizontally so it never blocks the real path
         if (level >= 2 && v.words.length > 1 && wi % 2 === 1) {
           const dw = v.words[(wi + 2) % v.words.length];
-          clouds.push({ x: W() - cl.x, y: y - 40, w: 110, type: "decoy", word: dw, grey: false, t0: Math.random() * 9 });
+          let dx = W() - cl.x;
+          if (Math.abs(dx - cl.x) < 300) dx = cl.x > W() / 2 ? cl.x - 340 : cl.x + 340;
+          dx = Math.max(70, Math.min(W() - 70, dx));
+          clouds.push({ x: dx, y: y - 50, w: 110, type: "decoy", word: dw, grey: false, t0: Math.random() * 9 });
         }
         y -= STEP; idx++;
       });
@@ -99,7 +103,7 @@
   // ---------- player ----------
   const P = { x: W() / 2, y: -40, vx: 0, vy: 0, r: 24, squash: 0 };
   let cam = -H() + 120, nextI = 0, paused = true, t = 0, rescue = 0, sparks = [];
-  const BOUNCE = -13.4, SUPER = -15.5, WEAK = -8, GRAV = 0.34;
+  const BOUNCE = -15.2, SUPER = -17, WEAK = -9, GRAV = 0.34;
 
   function spark(x, y, col, n) {
     for (let i = 0; i < (n || 14); i++)
@@ -137,6 +141,7 @@
 
   function landCloud(cl) {
     P.squash = 8;
+    P.y = cl.y - 10 - P.r; // snap onto the cloud so every bounce starts from its top
     if (cl.type === "base") { P.vy = BOUNCE; QQ.sfx.bounce(); return; }
     if (cl.type === "decoy") {
       P.vy = WEAK; cl.grey = true;
@@ -310,7 +315,7 @@
           for (const cl of clouds) {
             if (cl.type === "decoy" && cl.grey) continue;
             const top = cl.y - 10;
-            if (Math.abs(cl.x - P.x) < cl.w / 2 + P.r * .5 && P.y + P.r > top && P.y + P.r < top + 34 && P.vy < 22) {
+            if (Math.abs(cl.x - P.x) < cl.w / 2 + P.r * .6 && P.y + P.r > top && P.y + P.r < top + 48 && P.vy < 28) {
               landCloud(cl); break;
             }
           }
