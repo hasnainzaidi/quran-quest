@@ -155,6 +155,7 @@
       QQ.finish(surah, "starpath", level, () => location.reload());
     } else {
       QQ.preload(surah.id, surah.verses[curVI].n);
+      QQ.preloadWords(surah.verses[curVI]);
       paused = false;
     }
   }
@@ -332,8 +333,9 @@
     "Welcome to Star Path! Fly with the arrows, and catch the glowing word stars in order. " +
     "Each star sings one word of the surah. When you catch them all, fly through the golden gate!",
     async () => {
-      await QQ.speakIntro(surah);
       QQ.preload(surah.id, surah.verses[0].n);
+      QQ.preloadWords(surah.verses[0]);
+      await QQ.speakIntro(surah);
       paused = false;
     }
   );

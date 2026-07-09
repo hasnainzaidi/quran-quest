@@ -142,6 +142,7 @@
   async function playScene(first) {
     busy = true;
     const v = surah.verses[vi];
+    QQ.preloadWords(v);
     stage.style.background = skyFor(vi);
     bigEmoji.textContent = v.sceneEmoji;
     vAr.textContent = v.ar;

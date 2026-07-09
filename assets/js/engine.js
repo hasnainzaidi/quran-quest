@@ -36,36 +36,81 @@
   };
   QQ.verseUrl = (surahId, n) => QQ.verseUrls(surahId, n)[0];
 
-  // Single shared player so sounds never overlap.
-  const player = new Audio();
-  let playToken = 0;
+  // ---------- playback core ----------
+  // Primary path: WebAudio buffers (fetch + decode). No <audio> element reuse,
+  // no media-pipeline churn — rapid word/verse/voice sequences stay smooth.
+  // Fallback path (file:// or fetch failure): a FRESH <audio> element per play.
+  let playToken = 0, curSrc = null, curEl = null;
+  const canFetch = typeof fetch === "function" && location.protocol !== "file:";
+  const bufCache = new Map(); // url -> Promise<AudioBuffer>
+  function fetchBuf(url) {
+    if (!bufCache.has(url)) {
+      if (bufCache.size > 150) bufCache.delete(bufCache.keys().next().value);
+      const p = fetch(url)
+        .then((r) => { if (!r.ok) throw new Error("http " + r.status); return r.arrayBuffer(); })
+        .then((b) => ac().decodeAudioData(b));
+      p.catch(() => bufCache.delete(url));
+      bufCache.set(url, p);
+    }
+    return bufCache.get(url);
+  }
   QQ.stopAudio = () => {
     playToken++;
-    player.pause();
-    player.currentTime = 0;
+    try { if (curSrc) curSrc.stop(); } catch (e) {}
+    curSrc = null;
+    try { if (curEl) curEl.pause(); } catch (e) {}
+    curEl = null;
     try { speechSynthesis.cancel(); } catch (e) {}
   };
-  function playUrl(urls, rate) {
-    if (!Array.isArray(urls)) urls = [urls];
-    const token = ++playToken;
+  function playBuf(buf, rate, token) {
+    return new Promise((resolve) => {
+      const src = ac().createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = rate || 1;
+      src.connect(ac().destination);
+      curSrc = src;
+      src.onended = () => { if (curSrc === src) curSrc = null; resolve(token === playToken); };
+      try { src.start(); } catch (e) { resolve(false); }
+      setTimeout(() => resolve(false), (buf.duration / (rate || 1)) * 1000 + 5000);
+    });
+  }
+  function playUrlEl(urls, rate, token) {
     return new Promise((resolve) => {
       let i = 0;
       const tryNext = () => {
-        if (token !== playToken) return;
+        if (token !== playToken) return resolve(false);
         if (i >= urls.length) return resolve(false);
-        player.pause();
-        player.src = urls[i++];
-        player.playbackRate = rate || 1;
-        player.onended = () => token === playToken && resolve(true);
-        player.onerror = () => tryNext(); // fall through to next source
-        player.play().catch(() => tryNext());
+        const el = new Audio(urls[i++]); // fresh element every time
+        curEl = el;
+        el.playbackRate = rate || 1;
+        el.onended = () => resolve(token === playToken);
+        el.onerror = () => tryNext();
+        el.play().catch(() => tryNext());
+        setTimeout(() => { if (token === playToken && curEl === el && (el.paused || el.error)) tryNext(); }, 8000);
       };
       tryNext();
-      // safety: never hang callers forever
-      setTimeout(() => token === playToken && resolve(false), 30000);
+      setTimeout(() => resolve(false), 30000); // absolute safety
     });
   }
+  async function playUrl(urls, rate) {
+    if (!Array.isArray(urls)) urls = [urls];
+    QQ.stopAudio();
+    const token = playToken;
+    if (canFetch) {
+      for (const url of urls) {
+        let buf = null;
+        try { buf = await fetchBuf(url); } catch (e) { continue; }
+        if (token !== playToken) return false; // superseded while fetching
+        return playBuf(buf, rate, token);
+      }
+    }
+    return playUrlEl(urls, rate, token);
+  }
   QQ.playVerse = (surahId, n, rate) => playUrl(QQ.verseUrls(surahId, n), rate);
+  QQ.preloadWords = (verse) => {
+    if (canFetch && verse && verse.words)
+      verse.words.forEach((w) => fetchBuf(w.audio).catch(() => {}));
+  };
   QQ.playWord = (url) => playUrl(url);
   QQ.playSurah = async (surah, onVerse) => {
     for (const v of surah.verses) {
@@ -78,9 +123,9 @@
   };
   // Preload upcoming verses quietly.
   QQ.preload = (surahId, n) => {
-    const a = new Audio();
-    a.preload = "auto";
-    a.src = QQ.verseUrl(surahId, n);
+    const urls = QQ.verseUrls(surahId, n);
+    if (canFetch)
+      fetchBuf(urls[0]).catch(() => urls[1] && fetchBuf(urls[1]).catch(() => {}));
   };
   QQ.wait = (ms) => new Promise((r) => setTimeout(r, ms));
 

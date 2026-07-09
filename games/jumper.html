@@ -68,9 +68,10 @@
   const STEP = 118;
   let clouds = [], seq = [], moon = null;
   function margin() { return Math.min(W() * .16, 130); }
-  function zig(i, span) {
-    const m = margin(), usable = W() - 2 * m;
-    return m + (Math.sin(i * 1.7) * .5 + .5) * usable * (span || 1);
+  function zig(i) {
+    // gentle weave around the center: consecutive clouds stay within easy
+    // steering range of each other for small hands
+    return W() / 2 + Math.sin(i * .9) * (W() / 2 - margin()) * .55;
   }
   function build() {
     clouds = []; seq = [];
@@ -103,7 +104,7 @@
   // ---------- player ----------
   const P = { x: W() / 2, y: -40, vx: 0, vy: 0, r: 24, squash: 0 };
   let cam = -H() + 120, nextI = 0, paused = true, t = 0, rescue = 0, sparks = [];
-  const BOUNCE = -15.2, SUPER = -17, WEAK = -9, GRAV = 0.34;
+  const BOUNCE = -15.2, SUPER = -17, WEAK = -7.5, GRAV = 0.34;
 
   function spark(x, y, col, n) {
     for (let i = 0; i < (n || 14); i++)
@@ -134,6 +135,7 @@
       P.vy = SUPER * 1.2;
     } else {
       QQ.preload(surah.id, surah.verses[Math.min(g.vi + 1, V - 1)].n);
+      QQ.preloadWords(surah.verses[Math.min(g.vi + 1, V - 1)]);
       paused = false;
       P.vy = SUPER;
     }
@@ -314,6 +316,12 @@
         if (P.vy > 0) {
           for (const cl of clouds) {
             if (cl.type === "decoy" && cl.grey) continue;
+            // Only solid things: the base, decoys, the NEXT target, and
+            // clouds already collected. Everything ahead is a ghost you fall
+            // through — so overshooting can never trap you above your target.
+            const solid = cl.type === "base" || cl.type === "decoy" ||
+                          cl.seqI === nextI || cl.done;
+            if (!solid) continue;
             const top = cl.y - 10;
             if (Math.abs(cl.x - P.x) < cl.w / 2 + P.r * .6 && P.y + P.r > top && P.y + P.r < top + 48 && P.vy < 28) {
               landCloud(cl); break;
@@ -354,8 +362,9 @@
     "Time to jump up to the moon! Steer with the arrows. Bounce on the glowing clouds — " +
     "each cloud sings one word of the surah in order. Land on the golden star to hear the whole ayah!",
     async () => {
-      await QQ.speakIntro(surah);
       QQ.preload(surah.id, surah.verses[0].n);
+      QQ.preloadWords(surah.verses[0]);
+      await QQ.speakIntro(surah);
       paused = false;
       P.vy = BOUNCE;
     }
