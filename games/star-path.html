@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Star Path — Quran Quest</title>
-<link rel="stylesheet" href="../assets/css/shared.css?v=20260709b" />
+<link rel="stylesheet" href="../assets/css/shared.css?v=20260709c" />
 <style>
   body { background: #2b2350; overflow: hidden; }
   #wordPop {
@@ -51,9 +51,9 @@
 <div id="wordPop"><div class="wp-ar"></div></div>
 <div id="ayahBanner"><div class="ab-glow">✨</div><div class="ab-ar"></div></div>
 
-<script src="../assets/js/surahs.js?v=20260709b"></script>
-<script src="../assets/js/voice-manifest.js?v=20260709b"></script>
-<script src="../assets/js/engine.js?v=20260709b" data-audio-base="../audio/"></script>
+<script src="../assets/js/surahs.js?v=20260709c"></script>
+<script src="../assets/js/voice-manifest.js?v=20260709c"></script>
+<script src="../assets/js/engine.js?v=20260709c" data-audio-base="../audio/"></script>
 <script>
 (async function () {
   const surah = QQ.getSurah(QQ.param("surah"));
@@ -283,6 +283,8 @@
 
   // ---------- loop ----------
   function loop() {
+    requestAnimationFrame(loop); // schedule FIRST: one bad frame can never kill the game
+    try {
     t++;
     if (!paused) {
       const AX = .55, FR = .93, FLAP = .95, GRAV = .42;
@@ -324,7 +326,7 @@
       c.beginPath(); c.arc(p.x - cam, p.y, 4 * p.life, 0, 7); c.fill();
     });
     c.globalAlpha = 1;
-    requestAnimationFrame(loop);
+    } catch (e) { QQ.frameError(e); }
   }
   loop();
 

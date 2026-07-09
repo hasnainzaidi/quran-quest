@@ -2,6 +2,33 @@
 (function () {
   const QQ = (window.QQ = {});
 
+  // ---------- error safety net + debug ----------
+  const errs = [];
+  QQ.frameError = (e) => {
+    const msg = (e && (e.stack || e.message)) || String(e);
+    if (!errs.includes(msg)) { errs.push(msg); console.error("[QQ frame]", e); }
+  };
+  window.addEventListener("error", (ev) => errs.push(String(ev.message)));
+  window.addEventListener("unhandledrejection", (ev) =>
+    errs.push("rej: " + ((ev.reason && ev.reason.message) || ev.reason)));
+  if (new URLSearchParams(location.search).get("debug")) {
+    const d = document.createElement("div");
+    d.style.cssText = "position:fixed;bottom:4px;left:4px;z-index:99;font:11px monospace;" +
+      "background:rgba(0,0,0,.75);color:#0f0;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;pointer-events:none";
+    let frames = 0, last = performance.now();
+    (function tick() {
+      frames++;
+      const now = performance.now();
+      if (now - last > 1000) {
+        d.textContent = "fps " + frames + (errs.length ? "\nERR " + errs[errs.length - 1].slice(0, 300) : "");
+        frames = 0; last = now;
+      }
+      requestAnimationFrame(tick);
+    })();
+    addEventListener("DOMContentLoaded", () => document.body.appendChild(d));
+    setTimeout(() => document.body && !d.parentNode && document.body.appendChild(d), 1500);
+  }
+
   // ---------- data helpers ----------
   QQ.surahs = () => window.QURAN_DATA.surahs;
   QQ.getSurah = (slug) =>
