@@ -72,19 +72,27 @@ const api = (p, opts = {}) =>
     headers: { "xi-api-key": KEY, "content-type": "application/json", ...(opts.headers || {}) },
   });
 
+const DEFAULT_VOICE = "XrExE9yKIg1WjnnlVkGX"; // Matilda — warm premade storytelling voice
 let voiceId = process.env.ELEVEN_VOICE_ID;
 if (!voiceId) {
-  const res = await api("/voices");
-  if (!res.ok) { console.error("Could not list voices:", res.status, await res.text()); process.exit(1); }
-  const { voices } = await res.json();
-  const prefs = ["hope", "matilda", "dorothy", "alice", "lily", "jessica", "sarah", "rachel", "bella"];
-  for (const p of prefs) {
-    const v = voices.find((v) => v.name && v.name.toLowerCase().includes(p));
-    if (v) { voiceId = v.voice_id; console.log("Voice:", v.name, voiceId); break; }
+  try {
+    const res = await api("/voices");
+    if (res.ok) {
+      const { voices } = await res.json();
+      const prefs = ["hope", "matilda", "dorothy", "alice", "lily", "jessica", "sarah", "rachel", "bella"];
+      for (const p of prefs) {
+        const v = voices.find((v) => v.name && v.name.toLowerCase().includes(p));
+        if (v) { voiceId = v.voice_id; console.log("Voice:", v.name, voiceId); break; }
+      }
+      if (!voiceId && voices[0]) { voiceId = voices[0].voice_id; console.log("Voice (first available):", voices[0].name); }
+    } else {
+      console.warn("Could not list voices (" + res.status + ") — using default premade voice.");
+    }
+  } catch (e) {
+    console.warn("Voice listing failed — using default premade voice.");
   }
-  if (!voiceId && voices[0]) { voiceId = voices[0].voice_id; console.log("Voice (first available):", voices[0].name); }
 }
-if (!voiceId) { console.error("No voice available."); process.exit(1); }
+if (!voiceId) { voiceId = DEFAULT_VOICE; console.log("Voice: Matilda (default premade)", voiceId); }
 
 // --- generate ---
 let made = 0, skipped = 0, failed = 0;
